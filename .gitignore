@@ -1,3 +1,9 @@
+# Specific
+models/TDNNLayer.py
+models/tdnn.py
+tdnn_pso.ipynb
+*.pdf
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
