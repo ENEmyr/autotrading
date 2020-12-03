@@ -1,7 +1,7 @@
 # Specific
 models/TDNNLayer.py
 models/tdnn.py
-tdnn_pso.ipynb
+tdnn_pso_archive.ipynb
 *.pdf
 
 # Byte-compiled / optimized / DLL files

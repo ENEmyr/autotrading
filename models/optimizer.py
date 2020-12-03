@@ -1,4 +1,4 @@
-BIG_SCORE = 1.e6  # type: float
+BIG_SCORE = 1.e7  # type: float
 
 import tensorflow.keras as keras
 from models.particle import Particle
@@ -30,6 +30,7 @@ class Optimizer:
         self.global_best_score = BIG_SCORE
 
     def fit(self, x, y, steps=0, batch_size=32):
+        batch_size = 32 if batch_size == None else batch_size
         num_batches = x.shape[0] // batch_size
 
         for i, p in enumerate(self.particles):
@@ -62,5 +63,5 @@ class Optimizer:
     def get_best_model(self):
         best_model = keras.models.model_from_json(self.structure)
         best_model.set_weights(self.global_best_weights)
-        best_model.compile(loss=self.loss,optimizer=self.loss)
+        best_model.compile(loss=self.loss,optimizer='adam')
         return best_model
