@@ -3,6 +3,8 @@ models/TDNNLayer.py
 models/tdnn.py
 tdnn_pso_archive.ipynb
 *.pdf
+save_ckp/
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
