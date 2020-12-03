@@ -18,7 +18,7 @@ def preprocess(filepath:str, save_to:str=None, standardlize_factors:list=None):
     df = pd.read_csv(filepath)
     df.insert(0, 'Labels', df['Close'].values)
     stocks = df
-    stocks['ZScoreMidPrice'] = (stocks['High']-stocks['Low'])/2.0
+    stocks['ZScoreMidPrice'] = (stocks['High']+stocks['Low'])/2.0
     # Standardlization
     if standardlize_factors != None and len(standardlize_factors) == 6:
         midprice_mean, midprice_std, open_mean, open_std, close_mean, close_std = standardlize_factors
