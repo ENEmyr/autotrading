@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 
-from models.optimizer import BIG_SCORE
+from models.psooptimizer import BIG_SCORE
 
 
 class Particle:
