@@ -6,21 +6,18 @@ from functools import reduce
 def preprocess(filepath:str, save_to:str=None, standardlize_factors:list=None):
     filename = os.path.basename(filepath)
     if filename[filename.rfind('.'):] != '.csv':
-        print('Support only csv file.')
-        exit(0)
+        raise Exception('Support only csv file.')
     if not os.path.exists(filepath):
-        print('File not found.')
-        exit(0)
+        raise Exception('File not found.')
     if save_to != None:
         if not os.path.exists(save_to):
-            print('can not find save directory')
-            exit(0)
+            raise Exception('can not find save directory')
     df = pd.read_csv(filepath)
     df.insert(0, 'Labels', df['Close'].values)
     stocks = df
     stocks['ZScoreMidPrice'] = (stocks['High']+stocks['Low'])/2.0
     # Standardlization
-    if standardlize_factors != None and len(standardlize_factors) == 6:
+    if type(standardlize_factors) != 'NoneType' and len(standardlize_factors) == 6:
         midprice_mean, midprice_std, open_mean, open_std, close_mean, close_std = standardlize_factors
     else:
         midprice_mean, midprice_std = stocks['ZScoreMidPrice'].mean(), stocks['ZScoreMidPrice'].std()
@@ -60,3 +57,16 @@ def preprocess(filepath:str, save_to:str=None, standardlize_factors:list=None):
         return save_path, all_data, features, labels, standardlize_factors
     else:
         return all_data, features, labels, standardlize_factors
+
+def get_volumes(filepath:str):
+    filename = os.path.basename(filepath)
+    if filename[filename.rfind('.'):] != '.csv':
+        raise Exception('Support only csv file.')
+    if not os.path.exists(filepath):
+        raise Exception('File not found.')
+    volumes = None
+    try:
+        volumes = pd.read_csv(filepath)['Volume'].values
+    except Exception as e:
+        print(f'Error while reading csv file {e}')
+    return volumes

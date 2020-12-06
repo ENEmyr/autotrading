@@ -5,6 +5,7 @@ tdnn_pso_archive.ipynb
 *.pdf
 save_ckp/
 logs/
+simulator.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
