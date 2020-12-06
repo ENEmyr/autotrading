@@ -1,21 +1,18 @@
-def on_balance_volume(data, close_col, vol_col, trend_periods=21):
-    for index, row in data.iterrows():
-        if index > 0:
-            last_obv = data.at[index - 1, 'obv']
-            if row[close_col] > data.at[index - 1, close_col]:
-                current_obv = last_obv + row[vol_col]
-            elif row[close_col] < data.at[index - 1, close_col]:
-                current_obv = last_obv - row[vol_col]
-            else:
-                current_obv = last_obv
-        else:
-            last_obv = 0
-            current_obv = row[vol_col]
-            
-        data.at[index, 'obv'] = current_obv
+import numpy as np
 
-    data['obv_ema' + str(trend_periods)] = data['obv'].ewm(ignore_na=False, min_periods=0, com=trend_periods, adjust=True).mean()
-     
-    return data
-
-# data = on_balance_volume(data, 'Adj Close', 'Volume')
+def on_balance_volume(volumes:list, close_prices:list):
+    if len(volumes) != len(close_prices):
+        min_len = min(len(volumes), len(close_prices))
+        volumes = volumes[:min_len]
+        close_prices = close_prices[:min_len]
+    prev_close = 0
+    obv = 0
+    obv_list = []
+    for volume, close_price in zip(volumes, close_prices):
+        if close_price > prev_close:
+            obv += volume
+        elif close_price < prev_close:
+            obv -= volume
+        prev_close = close_price
+        obv_list.append(obv)
+    return np.array(obv_list)
