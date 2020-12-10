@@ -1,6 +1,5 @@
 import numpy as np
 import math
-from threading import Thread
 from utils import *
 
 class Simulator:
@@ -45,7 +44,7 @@ class Simulator:
         self.obv = on_balance_volume(self.volumes, self.pred_hma)
         self.obv_hma = Smoother(self.obv, 7).transform('hamming')
         self.brought_units = {} # {"close_price":"n_units"}
-        self.trade_record = [] # ('b/s/h', n_units, value) for record buy/sell/hold use for plot the graph
+        self.trade_record = {} # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
 
     def __cal_percent_change(self, old_data, new_data):
         pass
@@ -66,7 +65,7 @@ class Simulator:
             value -= commission_fee+vat_fee+self.trade_base_fee
         return value
 
-    def __buy(self, curr_price:float, trade_portion:float):
+    def __buy(self, curr_price:float, trade_portion:float, day:int):
         max_budget = self.balance*self.buy_limit_from_balance_portion
         tot_trade_budget = max_budget*trade_portion
         tot_trade_units = self.unit_multiplier*((tot_trade_budget//curr_price)//self.unit_multiplier)
@@ -77,73 +76,73 @@ class Simulator:
                 self.brought_units[curr_price] += tot_trade_units
             paid_off = self.__calculate_trade_value('b', tot_trade_units, curr_price)
             self.balance -= paid_off
-            self.trade_record.append(('b', tot_trade_units, -paid_off))
+            self.trade_record.append(('b', day, self.real_hist_price[day], tot_trade_units, -paid_off))
         return self.balance
 
-    def __hold(self):
-        self.trade_record.append(('h', 0, 0))
+    def __hold(self, day:int):
+        self.trade_record.append(('h', day, 0, 0, 0))
         return self.balance
 
-    def __sell(self, prev_price:float, curr_price:float, trade_portion:float):
+    def __sell(self, prev_price:float, curr_price:float, trade_portion:float, day:int):
         if curr_price <= prev_price-prev_price*self.cut_loss:
             # cut loss
             return_value = self.__calculate_trade_value('s', self.brought_units[prev_price], curr_price)
             self.balance += return_value
-            self.trade_record.append(('s', self.brought_units[prev_price], return_value))
+            self.trade_record.append(('s', day, prev_price, self.brought_units[prev_price], return_value))
             del(self.brought_units[prev_price])
             return self.balance
         else:
             tot_trade_units = self.unit_multiplier * (self.brought_units[prev_price]*trade_portion//self.unit_multiplier)
+            if self.brought_units[prev_price]-tot_trade_units == 100:
+                # trade all
+                tot_trade_units += 100
+
             if tot_trade_units > 0:
                 return_value = self.__calculate_trade_value('s', tot_trade_units, curr_price)
                 past_paid_off = self.__calculate_trade_value('b', tot_trade_units, prev_price)
                 if return_value-past_paid_off >= 0:
                     # sell if profit or at par
                     self.balance += return_value
-                    self.trade_record.append(('s', tot_trade_units, return_value))
+                    self.trade_record.append(('s', day, prev_price, tot_trade_units, return_value))
                 else:
                     # if curr_price <= prev_price-prev_price*self.cut_loss:
                         # self.balance += return_value
                         # self.trade_record.append(('s', tot_trade_units, return_value))
                     # else:
-                    return self.__hold()
+                    return self.__hold(day)
                 self.brought_units[prev_price] -= tot_trade_units
                 if self.brought_units[prev_price] == 0:
                     del(self.brought_units[prev_price])
             return self.balance
 
-    def __autotrade(self, curr_price:float, next_price:float, date_duration:int=1):
+    def __autotrade(self, curr_price:float, next_price:float, day:int, date_duration:int=1):
         # return [0 or 1, n_of_unit_to_buy/sell], n_of_unit_to_buy must be able to devide by unit_multiplier
         slope_direction = (next_price-curr_price)/abs(next_price-curr_price) # + is mean up, - mean down
         degree = math.degrees(np.arctan(abs(next_price - curr_price)/date_duration)) # degree of slope on date duration, max at 90 degree
         degree = 90 if degree >= 89 else degree # round up if degree close to maximum
         if degree > self.trade_sensitivity*100:
             if slope_direction == 1:
-                self.__buy(next_price, degree/90)
+                self.__buy(next_price, degree/90, day)
             else:
                 for price_hist in list(self.brought_units):
-                    self.__sell(price_hist, next_price, degree/90)
+                    self.__sell(price_hist, next_price, degree/90, day)
         else:
             # if curr_price <= prev_price-prev_price*self.cut_loss:
                 # self.__sell(prev_price, curr_price, degree/90)
             # else:
-            self.__hold()
+            self.__hold(day)
         return self.balance
 
     def plot(self):
         pass
 
     def run(self):
-        for day in range(len(self.pred_hma)):
+        for day in range(1, len(self.pred_hma)):
             if day%self.trade_freq == 0:
                 # if it start new trade period
-                # for cp in self.brought_units.keys():
-
-                # worker = Thread(target=self.__autotrade, args=(self.real_hist_price[day-1+len(self.y)-len(self.pred_hma)], self.pred_hma[day], self.trade_freq))
-                # worker.start()
-                # worker.join()
                 self.__autotrade(
-                        curr_price=self.real_hist_price[day-1+len(self.y)-len(self.pred_hma)],
+                        curr_price=self.real_hist_price[day-1],
                         next_price=self.pred_hma[day],
+                        day=day-1,
                         date_duration=self.trade_freq)
         return self.balance,self.real_hist_price, self.y, self.pred, self.pred_hma, self.obv, self.obv_hma, self.trade_record, self.brought_units
