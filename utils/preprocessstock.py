@@ -18,7 +18,7 @@ def preprocess(filepath:str, save_to:str=None, standardlize_factors:list=None, t
     stocks = df
     stocks['ZScoreMidPrice'] = (stocks['High']+stocks['Low'])/2.0
     # Standardlization
-    if standardlize_factors != None:
+    if type( standardlize_factors ) != type( None ):
         if len(standardlize_factors) == 6:
             midprice_mean, midprice_std, open_mean, open_std, close_mean, close_std = standardlize_factors
         else:
