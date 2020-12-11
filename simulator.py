@@ -44,7 +44,7 @@ class Simulator:
         self.obv = on_balance_volume(self.volumes, self.pred_hma)
         self.obv_hma = Smoother(self.obv, 7).transform('hamming')
         self.brought_units = {} # {"close_price":"n_units"}
-        self.trade_record = {} # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
+        self.trade_record = [] # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
 
     def __cal_percent_change(self, old_data, new_data):
         pass
@@ -88,7 +88,7 @@ class Simulator:
             # cut loss
             return_value = self.__calculate_trade_value('s', self.brought_units[prev_price], curr_price)
             self.balance += return_value
-            self.trade_record.append(('s', day, prev_price, self.brought_units[prev_price], return_value))
+            self.trade_record.append(('s', day, self.real_hist_price[day], self.brought_units[prev_price], return_value))
             del(self.brought_units[prev_price])
             return self.balance
         else:
@@ -103,7 +103,7 @@ class Simulator:
                 if return_value-past_paid_off >= 0:
                     # sell if profit or at par
                     self.balance += return_value
-                    self.trade_record.append(('s', day, prev_price, tot_trade_units, return_value))
+                    self.trade_record.append(('s', day, self.real_hist_price[day], tot_trade_units, return_value))
                 else:
                     # if curr_price <= prev_price-prev_price*self.cut_loss:
                         # self.balance += return_value
