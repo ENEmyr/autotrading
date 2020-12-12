@@ -17,6 +17,8 @@ class Simulator:
             # max_sell_unit:int=1000,
             unit_multiplier:int=100,
             trade_sensitivity:float=.15,
+            ma_window_size:int=7,
+            adaptive_ma_window_size:bool=False,
             trade_freq:int=1):
         self.model_type = model_type
         self.balance = balance
@@ -40,9 +42,15 @@ class Simulator:
         self.x, self.y = self.predictor.load_transform(csv_file_path)
         self.real_hist_price = self.y.reshape(-1, 1)[:, 0]
         self.pred = self.predictor.predict(self.x)
-        self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], 7).transform('hamming')
-        self.obv = on_balance_volume(self.volumes, self.pred_hma)
-        self.obv_hma = Smoother(self.obv, 7).transform('hamming')
+        if adaptive_ma_window_size == True:
+            self.adaptive_window_size = math.ceil(self.pred.std()*.3)
+            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], self.adaptive_window_size).transform('hamming')
+            self.obv = on_balance_volume(self.volumes, self.pred_hma)
+            self.obv_hma = Smoother(self.obv, self.adaptive_window_size).transform('hamming')
+        else:
+            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], ma_window_size).transform('hamming')
+            self.obv = on_balance_volume(self.volumes, self.pred_hma)
+            self.obv_hma = Smoother(self.obv, ma_window_size).transform('hamming')
         self.brought_units = {} # {"close_price":"n_units"}
         self.trade_record = [] # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
 
