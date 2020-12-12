@@ -17,8 +17,8 @@ class Simulator:
             # max_sell_unit:int=1000,
             unit_multiplier:int=100,
             trade_sensitivity:float=.15,
-            ma_window_size:int=7,
-            adaptive_ma_window_size:bool=False,
+            ema_alpha:float=.25,
+            adaptive_ema_alpha:bool=False,
             trade_freq:int=1):
         self.model_type = model_type
         self.balance = balance
@@ -42,15 +42,15 @@ class Simulator:
         self.x, self.y = self.predictor.load_transform(csv_file_path)
         self.real_hist_price = self.y.reshape(-1, 1)[:, 0]
         self.pred = self.predictor.predict(self.x)
-        if adaptive_ma_window_size == True:
+        if adaptive_ema_alpha == True:
             self.adaptive_window_size = math.ceil(self.pred.std()*.3)
-            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], self.adaptive_window_size).transform('hamming')
+            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], self.adaptive_window_size).transform('exponential')
             self.obv = on_balance_volume(self.volumes, self.pred_hma)
-            self.obv_hma = Smoother(self.obv, self.adaptive_window_size).transform('hamming')
+            self.obv_hma = Smoother(self.obv, self.adaptive_window_size).transform('exponential')
         else:
-            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], ma_window_size).transform('hamming')
+            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], alpha=ema_alpha).transform('exponential')
             self.obv = on_balance_volume(self.volumes, self.pred_hma)
-            self.obv_hma = Smoother(self.obv, ma_window_size).transform('hamming')
+            self.obv_hma = Smoother(self.obv, alpha=ema_alpha).transform('exponential')
         self.brought_units = {} # {"close_price":"n_units"}
         self.trade_record = [] # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
 
@@ -145,12 +145,12 @@ class Simulator:
         pass
 
     def run(self):
-        for day in range(1, len(self.pred_hma)):
+        for day in range(1, len(self.pred_hma)-7):
             if day%self.trade_freq == 0:
                 # if it start new trade period
                 self.__autotrade(
-                        curr_price=self.real_hist_price[day-1],
-                        next_price=self.pred_hma[day],
-                        day=day-1,
+                        curr_price=self.real_hist_price[day],
+                        next_price=self.pred_hma[day+7],
+                        day=day,
                         date_duration=self.trade_freq)
         return self.balance,self.real_hist_price, self.y, self.pred, self.pred_hma, self.obv, self.obv_hma, self.trade_record, self.brought_units
