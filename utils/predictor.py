@@ -1,4 +1,5 @@
 import numpy as np
+import joblib
 from utils.batch_manager import fit_into_batch, extract_from_batch
 from utils.preprocessstock import preprocess
 
@@ -8,8 +9,8 @@ class Predictor():
                 'tdnn': 'weights/tdnn.h5',
                 'tdnn_pso': 'weights/tdnnpso.h5',
                 'tdnn_de': 'weights/tdnnde.h5',
-                'rf': 'weights/rf.h5',
-                'svm': 'weights/svm.h5'
+                'rf': 'weights/rf.sav',
+                'svm': 'weights/svm.sav'
             }
         self.standardlize_factors = np.load('dataset/all_data-preprocessed.npz')['standardlize_factors']
         self.batch_size = batch_size
@@ -22,10 +23,9 @@ class Predictor():
             import tensorflow as tf
             self.model = tf.keras.models.load_model(self.model_path[self.model_type])
         elif self.model_type.lower() == 'rf':
-            self.model = None
+            self.model = joblib.load(self.model_path[self.model_type])
         elif self.model_type.lower() == 'svm':
-            self.model = None
-        pass
+            self.model = joblib.load(self.model_path[self.model_type])
 
     def load_transform(self, file_path:str):
         data, _, _, _ = preprocess(file_path, standardlize_factors=self.standardlize_factors)
@@ -46,7 +46,8 @@ class Predictor():
                 pred = self.model.predict(data)
                 pred = extract_from_batch(pred, og_n_samples)
             else:
-                pass
+                data = data.reshape(data.shape[0], 7).astype('float32')
+                pred = self.model.predict(data)
         except Exception as e:
             print(f'Error while prediction {e}')
         return pred

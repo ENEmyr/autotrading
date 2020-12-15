@@ -33,6 +33,8 @@ class Simulator:
         self.unit_multiplier = unit_multiplier
         self.trade_sensitivity = trade_sensitivity # how delicate to graph changes in order to decide to buy/sell/hold
         self.trade_freq = trade_freq # do trade every trade_freq days
+        self.adaptive_ema_alpha = adaptive_ema_alpha
+        self.ema_alpha = ema_alpha
         if self.trade_sensitivity > 1 or self.trade_sensitivity < 0:
             raise Exception('trade_sensitivity must be in range of 0 to 1')
         # if self.max_buy_unit%unit_multiplier != 0 or self.max_sell_unit%unit_multiplier != 0:
@@ -42,15 +44,15 @@ class Simulator:
         self.x, self.y = self.predictor.load_transform(csv_file_path)
         self.real_hist_price = self.y.reshape(-1, 1)[:, 0]
         self.pred = self.predictor.predict(self.x)
-        if adaptive_ema_alpha == True:
-            self.adaptive_window_size = math.ceil(self.pred.std()*.3)
+        self.adaptive_window_size = math.ceil(self.pred.std()*.3)
+        if self.adaptive_ema_alpha == True:
             self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], self.adaptive_window_size).transform('exponential')
             self.obv = on_balance_volume(self.volumes, self.pred_hma)
             self.obv_hma = Smoother(self.obv, self.adaptive_window_size).transform('exponential')
         else:
-            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], alpha=ema_alpha).transform('exponential')
+            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], alpha=self.ema_alpha).transform('exponential')
             self.obv = on_balance_volume(self.volumes, self.pred_hma)
-            self.obv_hma = Smoother(self.obv, alpha=ema_alpha).transform('exponential')
+            self.obv_hma = Smoother(self.obv, alpha=self.ema_alpha).transform('exponential')
         self.brought_units = {} # {"close_price":"n_units"}
         self.trade_record = [] # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
 
@@ -145,12 +147,17 @@ class Simulator:
         pass
 
     def run(self):
-        for day in range(1, len(self.pred_hma)-7):
+        trim_days = 6 #self.adaptive_window_size if self.adaptive_ema_alpha == True else math.ceil(2/self.ema_alpha)
+        for day in range(trim_days, len(self.real_hist_price)-trim_days):
             if day%self.trade_freq == 0:
                 # if it start new trade period
                 self.__autotrade(
                         curr_price=self.real_hist_price[day],
-                        next_price=self.pred_hma[day+7],
+                        next_price=self.pred_hma[day+trim_days],
                         day=day,
                         date_duration=self.trade_freq)
+        # sell all units
+        for price in list(self.brought_units):
+            self.balance += price*self.brought_units[price]
+            del(self.brought_units[price])
         return self.balance,self.real_hist_price, self.y, self.pred, self.pred_hma, self.obv, self.obv_hma, self.trade_record, self.brought_units
