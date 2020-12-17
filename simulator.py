@@ -20,10 +20,12 @@ class Simulator:
             trade_sensitivity:float=.15,
             ema_alpha:float=.25,
             adaptive_ema_alpha:bool=False,
-            trade_freq:int=1):
+            trade_freq:int=1,
+            annualized_rf:float=.43): # in percentage
         self.model_type = model_type
         self.balance = balance
         self.buy_limit_from_balance_portion = buy_limit_from_balance_portion
+        self.annualized_rf = annualized_rf
         self.trade_base_fee = trade_base_fee
         self.trade_fee = trade_fee/100
         self.vat = vat/100
@@ -57,12 +59,29 @@ class Simulator:
         self.brought_units = {} # {"close_price":"n_units"}
         self.trade_record = [] # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
 
-    def __cal_percent_change(self, old_data, new_data):
-        pass
-
-    def __cal_sharpe_ratio(self, return_port:float, risk_free_rate:float):
-        std = return_port.std()
-        pass
+    def __cal_sharpe_ratio(self, return_port:list, risk_free_rate:float):
+        sharpe_ratio = []
+        if len(return_port) >= 365:
+            for i in range(len(return_port)//365):
+                curr_port = return_port[365*i:365*i+365]
+                pct_change = np.diff(curr_port)/curr_port[:-1]*100
+                ann_expected_return = pct_change.mean()*len(curr_port)
+                s = (ann_expected_return-risk_free_rate)/(pct_change.std()*np.sqrt(len(curr_port)))
+                sharpe_ratio.append(s)
+            else:
+                if i*365 != len(return_port):
+                    curr_port = return_port[365*i+365:]
+                    pct_change = np.diff(curr_port)/curr_port[:-1]*100
+                    ann_expected_return = pct_change.mean()*len(curr_port)
+                    s = (ann_expected_return-risk_free_rate)/(pct_change.std()*np.sqrt(len(curr_port)))
+                    sharpe_ratio.append(s)
+        else:
+            curr_port = return_port
+            pct_change = np.diff(curr_port)/curr_port[:-1]*100
+            ann_expected_return = pct_change.mean()*len(curr_port)
+            s = (ann_expected_return-risk_free_rate)/(pct_change.std()*np.sqrt(len(curr_port)))
+            sharpe_ratio.append(s)
+        return sharpe_ratio
 
     def __calculate_trade_value(self, trade_type:str, n_units:int, price:float):
         if trade_type not in ['s', 'b']:
@@ -144,7 +163,7 @@ class Simulator:
             self.__hold(day)
         return self.balance
 
-    def plot(self, show_pred_price:bool=True, plot_buy_sell_point:bool=True, in_range:list=[0,None], save:bool=False):
+    def plot(self, plot_pred_price:bool=True, plot_buy_sell_point:bool=True, in_range:list=[0,None], save:bool=False):
         if len(in_range) != 2:
             raise Exception("in_range must be a list size of 2.")
         in_range[1] = len(self.real_hist_price) if in_range[1] == None else in_range[1]
@@ -182,7 +201,7 @@ class Simulator:
         pred_days = np.arange(in_range[0], len(self.pred_hma[in_range[0]:in_range[1]])+in_range[0])
         fig, ax = plt.subplots()
         ax.plot(real_days, self.real_hist_price[in_range[0]:in_range[1]], 'black', label='Actual')
-        if show_pred_price:
+        if plot_pred_price:
             ax.plot(real_days, (self.pred.reshape(-1, 1)[:, 0])[in_range[0]:in_range[1]], c='orange', ls='--', label='Predict')
         ax.plot(pred_days, self.pred_hma[in_range[0]:in_range[1]], 'blue', label='Predict-EMA')
         ax.set_xlabel('Days')
@@ -225,4 +244,7 @@ class Simulator:
         for price in list(self.brought_units):
             self.balance += price*self.brought_units[price]
             del(self.brought_units[price])
-        return self.balance,self.real_hist_price, self.y, self.pred, self.pred_hma, self.obv, self.obv_hma, self.trade_record, self.brought_units
+        sharpe_ratio_real = self.__cal_sharpe_ratio(self.real_hist_price, self.annualized_rf)
+        sharpe_ratio_pred = self.__cal_sharpe_ratio(self.pred.reshape(-1, 1)[:,0], self.annualized_rf)
+        return self.balance, sharpe_ratio_real, sharpe_ratio_pred
+        # return self.balance,self.real_hist_price, self.y, self.pred, self.pred_hma, self.obv, self.obv_hma, self.trade_record, self.brought_units
