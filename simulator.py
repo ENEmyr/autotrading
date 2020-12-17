@@ -1,5 +1,6 @@
 import numpy as np
-import math
+import math, datetime, mpld3
+import matplotlib.pyplot as plt
 from utils import *
 
 class Simulator:
@@ -143,8 +144,72 @@ class Simulator:
             self.__hold(day)
         return self.balance
 
-    def plot(self):
-        pass
+    def plot(self, show_pred_price:bool=True, plot_buy_sell_point:bool=True, in_range:list=[0,None], save:bool=False):
+        if len(in_range) != 2:
+            raise Exception("in_range must be a list size of 2.")
+        in_range[1] = len(self.real_hist_price) if in_range[1] == None else in_range[1]
+        if in_range[0] == None or in_range[1] > len(self.real_hist_price) or in_range[0] < 0 or in_range[0] > in_range[1]:
+            raise Exception("invalid values in in_range parameter.")
+        b_x, b_points, b_units = [], [], []
+        s_x, s_points, s_units = [], [], []
+        reduce_units_b, reduce_units_s = {}, {}
+        for rec in self.trade_record:
+            if rec[0] == 'b':
+                if rec[1] >= in_range[0] and rec[1] < in_range[1]:
+                    b_x.append(rec[1])
+                    b_points.append(rec[2])
+                    b_units.append(rec[3])
+            elif rec[0] == 's':
+                if rec[1] >= in_range[0] and rec[1] < in_range[1]:
+                    s_x.append(rec[1])
+                    s_points.append(rec[2])
+                    s_units.append(rec[3])
+        for idx, z in enumerate([zip(b_x, b_points, b_units), zip(s_x, s_points, s_units)]):
+            for val in z:
+                if idx == 0:
+                    if val[0] in list(reduce_units_b):
+                        reduce_units_b[val[0]][1] += val[2]
+                    else:
+                        reduce_units_b[val[0]] = [val[1], val[2]]
+                else:
+                    if val[0] in list(reduce_units_s):
+                        reduce_units_s[val[0]][1] += val[2]
+                    else:
+                        reduce_units_s[val[0]] = [val[1], val[2]]
+        pluged = False
+        mpld3.enable_notebook()
+        real_days = np.arange(in_range[0], len(self.real_hist_price[in_range[0]:in_range[1]])+in_range[0])
+        pred_days = np.arange(in_range[0], len(self.pred_hma[in_range[0]:in_range[1]])+in_range[0])
+        fig, ax = plt.subplots()
+        ax.plot(real_days, self.real_hist_price[in_range[0]:in_range[1]], 'black', label='Actual')
+        if show_pred_price:
+            ax.plot(real_days, (self.pred.reshape(-1, 1)[:, 0])[in_range[0]:in_range[1]], c='orange', ls='--', label='Predict')
+        ax.plot(pred_days, self.pred_hma[in_range[0]:in_range[1]], 'blue', label='Predict-EMA')
+        ax.set_xlabel('Days')
+        ax.set_ylabel('Close Price')
+        ax.legend()
+        if plot_buy_sell_point:
+            if len(reduce_units_b) != 0:
+                b_scat = ax.scatter(list(reduce_units_b), np.array(list(reduce_units_b.values()))[:,0].astype('float'), c='g', linewidths=1)
+                b_tooltip = mpld3.plugins.PointLabelTooltip(b_scat, labels=np.array(list(reduce_units_b.values()))[:,1].astype('float'))
+                mpld3.plugins.connect(fig, b_tooltip)
+                pluged = True
+            if len(reduce_units_s) != 0:
+                s_scat = ax.scatter(list(reduce_units_s), np.array(list(reduce_units_s.values()))[:,0].astype('float'), c='r', linewidths=1)
+                s_tooltip = mpld3.plugins.PointLabelTooltip(s_scat, labels=np.array(list(reduce_units_s.values()))[:,1].astype('float'))
+                mpld3.plugins.connect(fig, s_tooltip)
+                pluged = True
+            # if show_buy_sell_units:
+                # pluged = True
+                # for redu in [reduce_units_b, reduce_units_s]:
+                    # for idx in range(len(redu)):
+                        # if len(redu) != 0:
+                            # ax.annotate(np.array(list(redu.values()))[idx,1].astype('float'), (list(redu)[idx], np.array(list(redu.values()))[idx,0].astype('float')))
+        if save:
+            if pluged:
+                mpld3.save_html(fig, f'plot_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.html')
+            else:
+                plt.savefig(f'plot_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.png')
 
     def run(self):
         trim_days = 6 #self.adaptive_window_size if self.adaptive_ema_alpha == True else math.ceil(2/self.ema_alpha)
