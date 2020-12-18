@@ -200,6 +200,7 @@ class Simulator:
         real_days = np.arange(in_range[0], len(self.real_hist_price[in_range[0]:in_range[1]])+in_range[0])
         pred_days = np.arange(in_range[0], len(self.pred_ema[in_range[0]:in_range[1]])+in_range[0])
         fig, ax = plt.subplots()
+        ax.set_title(self.model_type)
         ax.plot(real_days, self.real_hist_price[in_range[0]:in_range[1]], 'black', label='Actual')
         if plot_pred_price:
             ax.plot(real_days, (self.pred.reshape(-1, 1)[:, 0])[in_range[0]:in_range[1]], c='orange', ls='--', label='Predict')
@@ -226,9 +227,9 @@ class Simulator:
                             # ax.annotate(np.array(list(redu.values()))[idx,1].astype('float'), (list(redu)[idx], np.array(list(redu.values()))[idx,0].astype('float')))
         if save:
             if pluged:
-                mpld3.save_html(fig, f'plot_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.html')
+                mpld3.save_html(fig, f'plot_{self.model_type}_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.html')
             else:
-                plt.savefig(f'plot_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.png')
+                plt.savefig(f'plot_{self.model_type}_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.png')
 
     def run(self):
         trim_days = 6 #self.adaptive_window_size if self.adaptive_ema_alpha == True else math.ceil(2/self.ema_alpha)
