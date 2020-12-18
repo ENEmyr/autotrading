@@ -49,13 +49,13 @@ class Simulator:
         self.pred = self.predictor.predict(self.x)
         self.adaptive_window_size = math.ceil(self.pred.std()*.3)
         if self.adaptive_ema_alpha == True:
-            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], self.adaptive_window_size).transform('exponential')
-            self.obv = on_balance_volume(self.volumes, self.pred_hma)
-            self.obv_hma = Smoother(self.obv, self.adaptive_window_size).transform('exponential')
+            self.pred_ema = Smoother(self.pred.reshape(-1, 1)[:, 0], self.adaptive_window_size).transform('exponential')
+            self.obv = on_balance_volume(self.volumes, self.pred_ema)
+            self.obv_ema = Smoother(self.obv, self.adaptive_window_size).transform('exponential')
         else:
-            self.pred_hma = Smoother(self.pred.reshape(-1, 1)[:, 0], alpha=self.ema_alpha).transform('exponential')
-            self.obv = on_balance_volume(self.volumes, self.pred_hma)
-            self.obv_hma = Smoother(self.obv, alpha=self.ema_alpha).transform('exponential')
+            self.pred_ema = Smoother(self.pred.reshape(-1, 1)[:, 0], alpha=self.ema_alpha).transform('exponential')
+            self.obv = on_balance_volume(self.volumes, self.pred_ema)
+            self.obv_ema = Smoother(self.obv, alpha=self.ema_alpha).transform('exponential')
         self.brought_units = {} # {"close_price":"n_units"}
         self.trade_record = [] # ('b/s/h', x, y, n_units, value) for record buy/sell/hold use for plot the graph
 
@@ -198,12 +198,12 @@ class Simulator:
         pluged = False
         mpld3.enable_notebook()
         real_days = np.arange(in_range[0], len(self.real_hist_price[in_range[0]:in_range[1]])+in_range[0])
-        pred_days = np.arange(in_range[0], len(self.pred_hma[in_range[0]:in_range[1]])+in_range[0])
+        pred_days = np.arange(in_range[0], len(self.pred_ema[in_range[0]:in_range[1]])+in_range[0])
         fig, ax = plt.subplots()
         ax.plot(real_days, self.real_hist_price[in_range[0]:in_range[1]], 'black', label='Actual')
         if plot_pred_price:
             ax.plot(real_days, (self.pred.reshape(-1, 1)[:, 0])[in_range[0]:in_range[1]], c='orange', ls='--', label='Predict')
-        ax.plot(pred_days, self.pred_hma[in_range[0]:in_range[1]], 'blue', label='Predict-EMA')
+        ax.plot(pred_days, self.pred_ema[in_range[0]:in_range[1]], 'blue', label='Predict-EMA')
         ax.set_xlabel('Days')
         ax.set_ylabel('Close Price')
         ax.legend()
@@ -237,7 +237,7 @@ class Simulator:
                 # if it start new trade period
                 self.__autotrade(
                         curr_price=self.real_hist_price[day],
-                        next_price=self.pred_hma[day+trim_days],
+                        next_price=self.pred_ema[day+trim_days],
                         day=day,
                         date_duration=self.trade_freq)
         # sell all units
@@ -247,4 +247,4 @@ class Simulator:
         sharpe_ratio_real = self.__cal_sharpe_ratio(self.real_hist_price, self.annualized_rf)
         sharpe_ratio_pred = self.__cal_sharpe_ratio(self.pred.reshape(-1, 1)[:,0], self.annualized_rf)
         return self.balance, sharpe_ratio_real, sharpe_ratio_pred
-        # return self.balance,self.real_hist_price, self.y, self.pred, self.pred_hma, self.obv, self.obv_hma, self.trade_record, self.brought_units
+        # return self.balance,self.real_hist_price, self.y, self.pred, self.pred_ema, self.obv, self.obv_ema, self.trade_record, self.brought_units
